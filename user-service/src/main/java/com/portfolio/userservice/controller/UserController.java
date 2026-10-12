@@ -1,15 +1,32 @@
 package com.portfolio.userservice.controller;
 
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.portfolio.userservice.dto.UserRequest;
+import com.portfolio.userservice.dto.UserResponse;
+import com.portfolio.userservice.service.UserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/users")
+@RequiredArgsConstructor
 public class UserController {
 
-    @GetMapping("/test")
-    public String test() {
-        return "User Service OK";
+    private final UserService userService;
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserResponse createUser(
+            @Valid @RequestBody UserRequest request) {
+
+        return userService.createUser(request);
+    }
+
+    @GetMapping
+    public List<UserResponse> getAllUsers() {
+        return userService.getAllUsers();
     }
 }
