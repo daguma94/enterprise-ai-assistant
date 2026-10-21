@@ -1,5 +1,6 @@
 package com.portfolio.documentservice.service;
 
+import com.portfolio.documentservice.dto.DocumentContentResponse;
 import com.portfolio.documentservice.dto.DocumentResponse;
 import com.portfolio.documentservice.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
@@ -18,6 +19,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import com.portfolio.documentservice.entity.Document;
+import com.portfolio.documentservice.exception.DocumentNotFoundException;
+import com.portfolio.documentservice.pdf.PdfTextExtractor;
+
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -26,6 +30,7 @@ import java.util.UUID;
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final PdfTextExtractor pdfTextExtractor;
 
     @Value("${app.storage.location}")
     private String storageLocation;
@@ -68,13 +73,26 @@ public class DocumentServiceImpl implements DocumentService {
 
         Path destination = storagePath.resolve(storedFilename);
 
-        Files.copy(file.getInputStream(), destination);
+        String extractedText;
+
+        try {
+            try (var inputStream = file.getInputStream()) {
+                Files.copy(inputStream, destination);
+            }
+
+            extractedText = pdfTextExtractor.extractText(destination);
+
+        } catch (IOException | RuntimeException ex) {
+            Files.deleteIfExists(destination);
+            throw ex;
+        }
 
         Document document = new Document();
         document.setFilename(originalFilename);
         document.setContentType(contentType);
         document.setSize(file.getSize());
         document.setStoragePath(destination.toString());
+        document.setExtractedText(extractedText);
         document.setUploadedAt(LocalDateTime.now());
 
         Document savedDocument;
@@ -96,6 +114,19 @@ public class DocumentServiceImpl implements DocumentService {
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    public DocumentContentResponse getDocumentContent(Long id) {
+
+        Document document = documentRepository.findById(id)
+        .orElseThrow(() -> new DocumentNotFoundException(id));
+
+        return new DocumentContentResponse(
+                document.getId(),
+                document.getFilename(),
+                document.getExtractedText()
+        );
     }
 
     private DocumentResponse toResponse(Document document) {

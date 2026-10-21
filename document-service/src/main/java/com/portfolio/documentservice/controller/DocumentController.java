@@ -1,5 +1,6 @@
 package com.portfolio.documentservice.controller;
 
+import com.portfolio.documentservice.dto.DocumentContentResponse;
 import com.portfolio.documentservice.dto.DocumentResponse;
 import com.portfolio.documentservice.service.DocumentService;
 import lombok.RequiredArgsConstructor;
@@ -29,5 +30,12 @@ public class DocumentController {
     @GetMapping
     public List<DocumentResponse> getAllDocuments() {
         return documentService.getAllDocuments();
+    }
+
+    @GetMapping("/{id}/content")
+    public DocumentContentResponse getDocumentContent(
+            @PathVariable Long id) {
+
+        return documentService.getDocumentContent(id);
     }
 }

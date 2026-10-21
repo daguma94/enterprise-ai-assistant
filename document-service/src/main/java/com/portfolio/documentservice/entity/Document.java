@@ -29,6 +29,9 @@ public class Document {
     @Column(nullable = false)
     private String storagePath;
 
+    @Column(columnDefinition = "TEXT")
+    private String extractedText;
+
     @Column(nullable = false)
     private LocalDateTime uploadedAt;
 }

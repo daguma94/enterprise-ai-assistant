@@ -1,11 +1,13 @@
 package com.portfolio.documentservice.service;
 
+import com.portfolio.documentservice.dto.DocumentContentResponse;
 import com.portfolio.documentservice.dto.DocumentResponse;
 import com.portfolio.documentservice.repository.DocumentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -22,8 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import com.portfolio.documentservice.entity.Document;
+import com.portfolio.documentservice.exception.DocumentNotFoundException;
+import com.portfolio.documentservice.pdf.PdfTextExtractor;
 
 import java.nio.file.Files;
 
@@ -33,6 +38,9 @@ class DocumentServiceImplTest {
     @Mock
     private DocumentRepository documentRepository;
 
+    @Mock
+    private PdfTextExtractor pdfTextExtractor;
+
     private DocumentServiceImpl documentService;
 
     @TempDir
@@ -41,8 +49,10 @@ class DocumentServiceImplTest {
     @BeforeEach
     void setUp() {
 
-        documentService =
-                new DocumentServiceImpl(documentRepository);
+        documentService = new DocumentServiceImpl(
+                documentRepository,
+                pdfTextExtractor
+        );
 
         ReflectionTestUtils.setField(
                 documentService,
@@ -69,8 +79,11 @@ class DocumentServiceImplTest {
                     return document;
                 });
 
+        when(pdfTextExtractor.extractText(any(Path.class)))
+        .thenReturn("Enterprise AI Assistant");
+
         DocumentResponse response =
-                documentService.uploadDocument(file);
+        documentService.uploadDocument(file);
 
         assertEquals(1L, response.id());
         assertEquals("manual.pdf", response.filename());
@@ -80,6 +93,20 @@ class DocumentServiceImplTest {
         try (var files = Files.list(tempDir)) {
             assertEquals(1, files.count());
         }
+
+        verify(pdfTextExtractor).extractText(any(Path.class));
+
+        ArgumentCaptor<Document> documentCaptor =
+        ArgumentCaptor.forClass(Document.class);
+
+        verify(documentRepository).save(documentCaptor.capture());
+
+        Document savedDocument = documentCaptor.getValue();
+
+        assertEquals(
+                "Enterprise AI Assistant",
+                savedDocument.getExtractedText()
+        );
     }
 
     @Test
@@ -109,12 +136,13 @@ class DocumentServiceImplTest {
         LocalDateTime uploadedAt = LocalDateTime.now();
 
         Document document = new Document(
-                1L,
-                "manual.pdf",
-                "application/pdf",
-                1024L,
-                "uploads/manual.pdf",
-                uploadedAt
+            1L,
+            "manual.pdf",
+            "application/pdf",
+            1024L,
+            "uploads/manual.pdf",
+            "Enterprise AI Assistant",
+            uploadedAt
         );
 
         when(documentRepository.findAll())
@@ -130,5 +158,48 @@ class DocumentServiceImplTest {
         assertEquals(uploadedAt, responses.get(0).uploadedAt());
 
         verify(documentRepository).findAll();
+    }
+
+    @Test
+    void shouldGetDocumentContent() {
+
+        Document document = new Document();
+        document.setId(1L);
+        document.setFilename("manual.pdf");
+        document.setExtractedText("Enterprise AI Assistant");
+
+        when(documentRepository.findById(1L))
+                .thenReturn(Optional.of(document));
+
+        DocumentContentResponse response =
+                documentService.getDocumentContent(1L);
+
+        assertEquals(1L, response.id());
+        assertEquals("manual.pdf", response.filename());
+        assertEquals(
+                "Enterprise AI Assistant",
+                response.extractedText()
+        );
+
+        verify(documentRepository).findById(1L);
+    }
+
+    @Test
+    void shouldThrowExceptionWhenDocumentNotFound() {
+
+        when(documentRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        DocumentNotFoundException exception = assertThrows(
+                DocumentNotFoundException.class,
+                () -> documentService.getDocumentContent(999L)
+        );
+
+        assertEquals(
+                "Document not found with id: 999",
+                exception.getMessage()
+        );
+
+        verify(documentRepository).findById(999L);
     }
 }
