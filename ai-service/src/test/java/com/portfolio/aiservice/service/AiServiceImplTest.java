@@ -1,8 +1,9 @@
 package com.portfolio.aiservice.service;
 
 import com.portfolio.aiservice.client.DocumentClient;
-import com.portfolio.aiservice.client.dto.DocumentContentResponse;
+
 import com.portfolio.aiservice.dto.AiResponse;
+import com.portfolio.aiservice.rag.DocumentSearchService;
 
 import org.junit.jupiter.api.Test;
 
@@ -14,6 +15,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.Mockito.*;
+
+import java.util.List;
+
+import org.springframework.ai.document.Document;
 
 class AiServiceImplTest {
 
@@ -28,6 +33,9 @@ class AiServiceImplTest {
 
         DocumentClient documentClient = mock(DocumentClient.class);
 
+        DocumentSearchService documentSearchService =
+        mock(DocumentSearchService.class);
+
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.user(anyString())).thenReturn(requestSpec);
         when(requestSpec.call()).thenReturn(responseSpec);
@@ -36,8 +44,9 @@ class AiServiceImplTest {
 
         AiServiceImpl aiService = new AiServiceImpl(
         chatClient,
-        documentClient
-        );
+        documentClient,
+        documentSearchService
+);
 
         AiResponse response =
                 aiService.askQuestion("¿Qué es Spring Boot?");
@@ -51,20 +60,18 @@ class AiServiceImplTest {
     }
 
     @Test
-    void shouldAnswerQuestionAboutDocument() {
+        void shouldAnswerQuestionAboutDocument() {
 
         // Arrange
-        Long documentId = 1L;
-        String question = "¿Qué es Spring Boot?";
+        Long documentId = 6L;
+        String question = "¿Qué son los virtual threads?";
 
-        DocumentContentResponse document =
-                new DocumentContentResponse(
-                        documentId,
-                        "spring-boot.pdf",
-                        "Spring Boot simplifies the development of Java applications."
-                );
+        DocumentSearchService documentSearchService =
+                mock(DocumentSearchService.class);
 
-        DocumentClient documentClient = mock(DocumentClient.class);
+        DocumentClient documentClient =
+                mock(DocumentClient.class);
+
         ChatClient chatClient = mock(ChatClient.class);
 
         ChatClientRequestSpec requestSpec =
@@ -73,8 +80,14 @@ class AiServiceImplTest {
         CallResponseSpec responseSpec =
                 mock(CallResponseSpec.class);
 
-        when(documentClient.getDocumentContent(documentId))
-                .thenReturn(document);
+        Document chunk = new Document(
+                "Los virtual threads de Java 21 permiten "
+                + "escalar tareas que esperan operaciones de E/S."
+        );
+
+        when(documentSearchService.searchRelevantChunks(
+                documentId, question))
+                .thenReturn(List.of(chunk));
 
         when(chatClient.prompt()).thenReturn(requestSpec);
         when(requestSpec.system(anyString())).thenReturn(requestSpec);
@@ -82,10 +95,16 @@ class AiServiceImplTest {
         when(requestSpec.call()).thenReturn(responseSpec);
 
         when(responseSpec.content())
-                .thenReturn("Spring Boot simplifica el desarrollo de aplicaciones Java.");
+                .thenReturn(
+                        "Los virtual threads permiten gestionar "
+                        + "muchas tareas concurrentes de E/S."
+                );
 
-        AiServiceImpl aiService =
-                new AiServiceImpl(chatClient, documentClient);
+        AiServiceImpl aiService = new AiServiceImpl(
+                chatClient,
+                documentClient,
+                documentSearchService
+        );
 
         // Act
         AiResponse response =
@@ -93,18 +112,20 @@ class AiServiceImplTest {
 
         // Assert
         assertEquals(
-                "Spring Boot simplifica el desarrollo de aplicaciones Java.",
+                "Los virtual threads permiten gestionar "
+                + "muchas tareas concurrentes de E/S.",
                 response.answer()
         );
 
-        verify(documentClient).getDocumentContent(documentId);
+        verify(documentSearchService)
+                .searchRelevantChunks(documentId, question);
 
         verify(requestSpec).user(
-                contains("Spring Boot simplifies the development of Java applications.")
+                contains("Los virtual threads de Java 21")
         );
 
         verify(requestSpec).user(
                 contains(question)
         );
-    }
+        }
 }

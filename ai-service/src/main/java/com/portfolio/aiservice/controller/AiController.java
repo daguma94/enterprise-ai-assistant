@@ -3,13 +3,16 @@ package com.portfolio.aiservice.controller;
 import com.portfolio.aiservice.dto.AiRequest;
 import com.portfolio.aiservice.dto.AiResponse;
 import com.portfolio.aiservice.dto.DocumentQuestionRequest;
+import com.portfolio.aiservice.rag.DocumentEmbeddingService;
 import com.portfolio.aiservice.service.AiService;
 
 import jakarta.validation.Valid;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiController {
 
     private final AiService aiService;
+    private final DocumentEmbeddingService documentEmbeddingService;
 
     @GetMapping("/test")
     public String test() {
@@ -39,6 +43,17 @@ public class AiController {
         return aiService.askDocument(
                 request.documentId(),
                 request.question()
+        );
+    }
+
+    @PostMapping("/index-document/{documentId}")
+    public ResponseEntity<String> indexDocument(
+            @PathVariable Long documentId) {
+
+        documentEmbeddingService.indexDocument(documentId);
+
+        return ResponseEntity.ok(
+                "Document indexed successfully: " + documentId
         );
     }
 }
