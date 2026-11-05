@@ -1,0 +1,101 @@
+services:
+
+  user-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: enterprise_ai_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - user-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d enterprise_ai_users"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  document-db:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: enterprise_ai_documents
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - document-db-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d enterprise_ai_documents"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vector-db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_DB: enterprise_ai_vectors
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${VECTOR_DB_PASSWORD:-postgres}
+    ports:
+      - "5434:5432"
+    volumes:
+      - enterprise-ai-pgvector-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d enterprise_ai_vectors"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  user-service:
+    image: enterprise-ai-user-service:v1
+    environment:
+      DB_URL: jdbc:postgresql://user-db:5432/enterprise_ai_users
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    depends_on:
+      user-db:
+        condition: service_healthy
+
+  document-service:
+    image: enterprise-ai-document-service:v1
+    environment:
+      DB_URL: jdbc:postgresql://document-db:5432/enterprise_ai_documents
+      DB_USERNAME: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - document-uploads:/app/uploads
+    depends_on:
+      document-db:
+        condition: service_healthy
+
+  ai-service:
+    image: enterprise-ai-ai-service:v2
+    environment:
+      VECTOR_DB_URL: jdbc:postgresql://vector-db:5432/enterprise_ai_vectors
+      SPRING_DATASOURCE_USERNAME: postgres
+      VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:-postgres}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+    depends_on:
+      vector-db:
+        condition: service_healthy
+      document-service:
+        condition: service_started
+
+  api-gateway:
+    image: enterprise-ai-api-gateway:v1
+    ports:
+      - "8085:8080"
+    environment:
+      USER_SERVICE_URL: http://user-service:8081
+      DOCUMENT_SERVICE_URL: http://document-service:8082
+      AI_SERVICE_URL: http://ai-service:8083
+    depends_on:
+      - user-service
+      - document-service
+      - ai-service
+
+volumes:
+  user-db-data:
+  document-db-data:
+  document-uploads:
+  enterprise-ai-pgvector-data:
+    external: true
