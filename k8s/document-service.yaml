@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-ai-document-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enterprise-ai-document-service
+  template:
+    metadata:
+      labels:
+        app: enterprise-ai-document-service
+    spec:
+      containers:
+        - name: document-service
+          image: enterprise-ai-document-service:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8082
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://enterprise-ai-document-db:5432/enterprise_ai_documents
+            - name: DB_USERNAME
+              value: postgres
+            - name: DB_PASSWORD
+              value: postgres
+            - name: APP_STORAGE_LOCATION
+              value: /app/uploads
+          volumeMounts:
+            - name: document-storage
+              mountPath: /app/uploads
+      volumes:
+        - name: document-storage
+          persistentVolumeClaim:
+            claimName: enterprise-ai-documents-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: enterprise-ai-documents-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-ai-document-service
+spec:
+  selector:
+    app: enterprise-ai-document-service
+  ports:
+    - port: 8082
+      targetPort: 8082
+  type: ClusterIP

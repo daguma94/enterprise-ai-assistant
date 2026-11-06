@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: enterprise-ai-document-db-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-ai-document-db
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: enterprise-ai-document-db
+  template:
+    metadata:
+      labels:
+        app: enterprise-ai-document-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: enterprise_ai_documents
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              value: postgres
+            - name: PGDATA
+              value: /var/lib/postgresql/18/docker
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: enterprise-ai-document-db-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-ai-document-db
+spec:
+  selector:
+    app: enterprise-ai-document-db
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP

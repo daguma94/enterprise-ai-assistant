@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: enterprise-ai-ai-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: enterprise-ai-ai-service
+  template:
+    metadata:
+      labels:
+        app: enterprise-ai-ai-service
+    spec:
+      containers:
+        - name: ai-service
+          image: enterprise-ai-ai-service:v2
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8083
+          env:
+            - name: VECTOR_DB_URL
+              value: jdbc:postgresql://enterprise-ai-vector-db:5432/enterprise_ai_vectors
+            - name: VECTOR_DB_PASSWORD
+              value: postgres
+            - name: OLLAMA_BASE_URL
+              value: http://host.docker.internal:11434
+            - name: DOCUMENT_SERVICE_URL
+              value: http://enterprise-ai-document-service:8082
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: enterprise-ai-ai-service
+spec:
+  selector:
+    app: enterprise-ai-ai-service
+  ports:
+    - port: 8083
+      targetPort: 8083
+  type: ClusterIP
